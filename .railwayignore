@@ -1,0 +1,4 @@
+# Railway deployment config
+node_modules/
+.git/
+*.log
