@@ -1,6 +1,7 @@
 import redis
 import secrets
 from typing import Optional
+from urllib.parse import urlparse
 from ..config import settings
 
 # Redis client
@@ -8,10 +9,24 @@ _redis_client: Optional[redis.Redis] = None
 
 
 def get_redis() -> redis.Redis:
-    """Get Redis client singleton."""
+    """Get Redis client singleton.
+
+    Uses explicit host/port/password connection to avoid redis-py URL parsing
+    quirks with Railway Redis (which uses --requirepass without ACL users).
+    Adds socket timeouts so failures are fast rather than hanging.
+    """
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+        parsed = urlparse(settings.redis_url)
+        _redis_client = redis.Redis(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 6379,
+            password=parsed.password or None,
+            db=int((parsed.path or "/0").lstrip("/") or 0),
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
     return _redis_client
 
 
