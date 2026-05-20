@@ -1,7 +1,7 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .routers import auth, users, projects, upload, events, assets, me, comments, approvals, share, metadata, branding, notifications, admin, setup, folders, hls_proxy
@@ -68,3 +68,23 @@ app.include_router(hls_proxy.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/internal/bootstrap-superadmin")
+def bootstrap_superadmin(email: str, secret: str):
+    """One-time use: promote a user to superadmin. Requires BOOTSTRAP_SECRET env var."""
+    bootstrap_secret = os.getenv("BOOTSTRAP_SECRET", "")
+    if not bootstrap_secret or secret != bootstrap_secret:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    from .database import SessionLocal
+    from .models.user import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        user.is_superadmin = True
+        user.email_verified = True
+        db.commit()
+        return {"message": f"Promoted {email} to superadmin", "user_id": str(user.id)}
+    finally:
+        db.close()
