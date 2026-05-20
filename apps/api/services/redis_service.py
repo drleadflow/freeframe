@@ -11,8 +11,8 @@ _redis_client: Optional[redis.Redis] = None
 def get_redis() -> redis.Redis:
     """Get Redis client singleton.
 
-    Uses explicit host/port/password connection to avoid redis-py URL parsing
-    quirks with Railway Redis (which uses --requirepass without ACL users).
+    Uses explicit host/port/password/username connection to avoid redis-py URL
+    parsing quirks with Railway Redis 7 ACL (requires AUTH default <pass>).
     Adds socket timeouts so failures are fast rather than hanging.
     """
     global _redis_client
@@ -21,6 +21,7 @@ def get_redis() -> redis.Redis:
         _redis_client = redis.Redis(
             host=parsed.hostname or "localhost",
             port=parsed.port or 6379,
+            username="default",
             password=parsed.password or None,
             db=int((parsed.path or "/0").lstrip("/") or 0),
             decode_responses=True,
