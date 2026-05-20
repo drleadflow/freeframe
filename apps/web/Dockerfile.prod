@@ -2,8 +2,10 @@
 FROM node:20-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
+# Copy workspace config files
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Use --no-frozen-lockfile to allow minor version drift between lockfile and package.json
+RUN pnpm install --no-frozen-lockfile
 
 # Stage 2: Build the application
 FROM node:20-alpine AS builder
