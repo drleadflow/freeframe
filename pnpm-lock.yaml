@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      wavesurfer.js:
-        specifier: ^7.12.4
-        version: 7.12.4
     devDependencies:
       turbo:
         specifier: latest
@@ -52,8 +48,6 @@ packages:
     resolution: {integrity: sha512-Rb4qk5YT8RUwwdXtkLpkVhNEe/lor6+WV7S5tTlLpxSz6MjV5Qi8jGNn4gS6NAvrYGA/rNrE6YUQM85sCZUDbQ==}
     hasBin: true
 
-  wavesurfer.js@7.12.4:
-    resolution: {integrity: sha512-b/+XnWfJejNdvNUmtm4M5QzQepHhUbTo+62wYybwdV1B/Sn9vHhgb1xckRm0rGY2ZefJwLkE7lYcKnLfIia4cQ==}
 
 snapshots:
 
@@ -84,4 +78,3 @@ snapshots:
       '@turbo/windows-64': 2.8.20
       '@turbo/windows-arm64': 2.8.20
 
-  wavesurfer.js@7.12.4: {}
