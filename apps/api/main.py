@@ -1,4 +1,5 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,9 +9,14 @@ from .services.s3_service import ensure_bucket_exists
 from .middleware.global_rate_limit import GlobalRateLimitMiddleware
 from .middleware.setup_guard import SetupGuardMiddleware
 
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ensure_bucket_exists()
+    try:
+        ensure_bucket_exists()
+    except Exception as e:
+        logger.warning(f"S3 bucket check failed (non-fatal): {e}")
     yield
 
 _disable_docs = os.getenv("DISABLE_DOCS", "").lower() in ("true", "1", "yes")
@@ -62,4 +68,3 @@ app.include_router(hls_proxy.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
