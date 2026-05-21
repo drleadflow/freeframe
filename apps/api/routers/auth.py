@@ -19,6 +19,7 @@ from ..services.auth_service import (
 from ..services.redis_service import (
     generate_magic_code, store_magic_code, verify_magic_code as redis_verify_magic_code,
     MAGIC_CODE_EXPIRY_SECONDS,
+    store_password_setup_token, verify_and_consume_password_setup_token,
 )
 from ..tasks.email_tasks import send_magic_code_email, send_invite_email
 from ..tasks.celery_app import send_task_safe
@@ -108,24 +109,56 @@ def verify_magic_code(body: VerifyMagicCodeRequest, db: Session = Depends(get_db
     # Check if user needs to set password
     needs_password = user.password_hash is None
     
+    # If password setup is needed, store a one-time setup token so the
+    # set-password endpoint can verify the user without relying on
+    # localStorage tokens (which can be missing on mobile browsers).
+    setup_token: str | None = None
+    if needs_password:
+        setup_token = secrets.token_urlsafe(32)
+        store_password_setup_token(body.email, setup_token)
+    
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=create_refresh_token(str(user.id)),
         needs_password=needs_password,
+        setup_token=setup_token,
     )
 
 
-@router.post("/set-password", response_model=UserResponse)
+@router.post("/set-password", response_model=TokenResponse)
 def set_password(
     body: SetPasswordRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Set password for authenticated user (after magic code verification)."""
-    current_user.password_hash = hash_password(body.password)
+    """Set password for a user who just verified via magic code.
+    
+    Uses a one-time setup token (issued by verify-magic-code) to avoid
+    depending on localStorage-stored tokens, which can be unavailable on
+    mobile browsers. Returns fresh tokens on success.
+    """
+    user = get_user_by_email(db, body.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.status == UserStatus.deactivated:
+        raise HTTPException(status_code=401, detail="Account deactivated")
+    
+    # Verify the one-time setup token
+    if not body.setup_token or not verify_and_consume_password_setup_token(body.email, body.setup_token):
+        raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+    
+    # Set the password
+    user.password_hash = hash_password(body.password)
+    user.email_verified = True
+    if user.status == UserStatus.pending_verification:
+        user.status = UserStatus.active
     db.commit()
-    db.refresh(current_user)
-    return current_user
+    
+    return TokenResponse(
+        access_token=create_access_token(str(user.id)),
+        refresh_token=create_refresh_token(str(user.id)),
+        needs_password=False,
+    )
 
 
 @router.get("/invite/{token}", response_model=InviteInfoResponse)

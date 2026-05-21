@@ -11,12 +11,7 @@ def get_redis() -> redis.Redis:
     """Get Redis client singleton."""
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-        )
+        _redis_client = redis.from_url(settings.redis_url, decode_responses=True)
     return _redis_client
 
 
@@ -80,6 +75,30 @@ def delete_magic_code(email: str) -> None:
     attempts_key = f"{MAGIC_CODE_ATTEMPTS_PREFIX}{email.lower()}"
     r.delete(key)
     r.delete(attempts_key)
+
+
+# Password setup tokens — issued after magic code verification when needs_password=True.
+# Allows the set-password endpoint to verify the user without relying on localStorage tokens.
+PASSWORD_SETUP_TOKEN_PREFIX = "pwd_setup:"
+PASSWORD_SETUP_TOKEN_EXPIRY_SECONDS = 600  # 10 minutes
+
+
+def store_password_setup_token(email: str, token: str) -> None:
+    """Store a one-time password setup token for a user who just verified via magic code."""
+    r = get_redis()
+    key = f"{PASSWORD_SETUP_TOKEN_PREFIX}{email.lower()}"
+    r.setex(key, PASSWORD_SETUP_TOKEN_EXPIRY_SECONDS, token)
+
+
+def verify_and_consume_password_setup_token(email: str, token: str) -> bool:
+    """Verify and consume (delete) a password setup token. Returns True if valid."""
+    r = get_redis()
+    key = f"{PASSWORD_SETUP_TOKEN_PREFIX}{email.lower()}"
+    stored = r.get(key)
+    if stored and stored == token:
+        r.delete(key)
+        return True
+    return False
 
 
 # Invite token keys (also in Redis for faster lookup)

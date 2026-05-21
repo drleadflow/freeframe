@@ -16,6 +16,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     needs_password: bool = False  # True if user needs to set password
+    setup_token: str | None = None  # One-time token for mobile-safe password setup flow
 
 class RefreshRequest(BaseModel):
     refresh_token: str
@@ -50,6 +51,8 @@ class VerifyMagicCodeRequest(BaseModel):
     code: str
 
 class SetPasswordRequest(BaseModel):
+    email: EmailStr
+    setup_token: str
     password: str
 
 # Invite flow

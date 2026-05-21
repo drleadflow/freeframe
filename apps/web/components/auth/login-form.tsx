@@ -24,6 +24,7 @@ export function LoginForm() {
   const [passwordError, setPasswordError] = useState('')
   const [generalError, setGeneralError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [setupToken, setSetupToken] = useState('')
 
   // Classic login fields
   const [classicEmail, setClassicEmail] = useState('')
@@ -122,6 +123,9 @@ export function LoginForm() {
 
       if (res.needs_password) {
         setTokens(res.access_token, res.refresh_token)
+        // Store the setup token for the password step — this lets set-password
+        // work without depending on localStorage tokens surviving on mobile.
+        setSetupToken(res.setup_token ?? '')
         setStep('password')
       } else {
         setTokens(res.access_token, res.refresh_token)
@@ -174,18 +178,23 @@ export function LoginForm() {
 
     setLoading(true)
     try {
+      // Send email + setup_token alongside password so the API can verify
+      // the user without relying on localStorage tokens (missing on mobile).
       const res = await api.post<AuthTokens>('/auth/set-password', {
         email,
-        code: code.join(''),
+        setup_token: setupToken,
         password,
       })
       setTokens(res.access_token, res.refresh_token)
       await useAuthStore.getState().fetchUser()
-      const u = useAuthStore.getState().user
       router.replace('/projects')
     } catch (err) {
       if (err instanceof ApiError) {
-        setGeneralError(err.detail)
+        if (err.detail.includes('Code expired') || err.detail.includes('sign in again')) {
+          setGeneralError('Your session expired. Please go back and sign in again.')
+        } else {
+          setGeneralError(err.detail)
+        }
       } else {
         setGeneralError('Something went wrong. Please try again.')
       }

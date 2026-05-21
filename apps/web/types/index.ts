@@ -508,6 +508,7 @@ export interface VerifyCodeResponse {
   refresh_token: string;
   token_type: string;
   needs_password: boolean;
+  setup_token?: string;
 }
 
 export interface AuthTokens {
