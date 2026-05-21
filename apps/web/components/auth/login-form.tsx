@@ -121,6 +121,7 @@ export function LoginForm() {
       })
 
       if (res.needs_password) {
+        setTokens(res.access_token, res.refresh_token)
         setStep('password')
       } else {
         setTokens(res.access_token, res.refresh_token)
