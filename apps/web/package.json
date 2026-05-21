@@ -33,6 +33,7 @@
     "swr": "^2.3.3",
     "tailwind-merge": "^3.3.0",
     "wavesurfer.js": "^7.12.5",
+    "sharp": "^0.33.5",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
