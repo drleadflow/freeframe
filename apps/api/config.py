@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     frontend_url: str = "http://localhost:3000"
+    cors_extra_origins: str = ""  # Comma-separated extra allowed origins
     transcoder_engine: str = "ffmpeg"
     
     # Worker concurrency settings
