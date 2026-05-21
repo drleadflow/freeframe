@@ -299,6 +299,19 @@ export function LoginForm() {
         </div>
 
         <form onSubmit={handleSetPassword} className="flex flex-col gap-4">
+          {/* Hidden email field — tells the browser the username for this credential
+              so it doesn't inject its own ghost field above the password inputs */}
+          <input
+            type="email"
+            name="username"
+            autoComplete="username"
+            value={email}
+            onChange={() => {}}
+            readOnly
+            aria-hidden="true"
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none', tabIndex: -1 }}
+          />
+
           {generalError && (
             <div className="rounded-md border border-status-error/30 bg-status-error/10 px-3 py-2.5 text-sm text-status-error">
               {generalError}
