@@ -25,6 +25,7 @@ export function LoginForm() {
   const [generalError, setGeneralError] = useState('')
   const [loading, setLoading] = useState(false)
   const [setupToken, setSetupToken] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
 
   // Classic login fields
   const [classicEmail, setClassicEmail] = useState('')
@@ -38,6 +39,15 @@ export function LoginForm() {
       codeRefs.current[0]?.focus()
     }
   }, [step])
+
+  // Resend code cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => {
+      setResendCooldown((c) => c - 1)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
 
   // ─── Step 1: Send magic code ──────────────────────────────────────────────
 
@@ -64,6 +74,28 @@ export function LoginForm() {
         setGeneralError(err.detail)
       } else {
         setGeneralError('Failed to send code. Please try again.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ─── Resend magic code ───────────────────────────────────────────────────
+
+  async function handleResendCode() {
+    if (resendCooldown > 0 || loading) return
+    setCodeError('')
+    setGeneralError('')
+    setCode(['', '', '', '', '', ''])
+    setLoading(true)
+    try {
+      await api.post('/auth/send-magic-code', { email })
+      setResendCooldown(30)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setGeneralError(err.detail)
+      } else {
+        setGeneralError('Failed to resend code. Please try again.')
       }
     } finally {
       setLoading(false)
@@ -131,7 +163,7 @@ export function LoginForm() {
         setTokens(res.access_token, res.refresh_token)
         await useAuthStore.getState().fetchUser()
         const user = useAuthStore.getState().user
-        router.replace('/projects')
+        window.location.href = '/projects'
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -187,7 +219,7 @@ export function LoginForm() {
       })
       setTokens(res.access_token, res.refresh_token)
       await useAuthStore.getState().fetchUser()
-      router.replace('/projects')
+      window.location.href = '/projects'
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.detail.includes('Code expired') || err.detail.includes('sign in again')) {
@@ -223,7 +255,7 @@ export function LoginForm() {
       setTokens(res.access_token, res.refresh_token)
       await useAuthStore.getState().fetchUser()
       const u = useAuthStore.getState().user
-      router.replace('/projects')
+      window.location.href = '/projects'
     } catch (err) {
       if (err instanceof ApiError) {
         setClassicError(err.detail)
@@ -389,6 +421,16 @@ export function LoginForm() {
         </form>
 
         <div className="mt-6 text-center space-y-2">
+          <button
+            type="button"
+            onClick={handleResendCode}
+            disabled={resendCooldown > 0}
+            className="block w-full text-sm text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {resendCooldown > 0
+              ? `Resend code (${resendCooldown}s)`
+              : 'Resend code'}
+          </button>
           <button
             type="button"
             onClick={() => { setStep('email'); setCode(['', '', '', '', '', '']); setCodeError('') }}

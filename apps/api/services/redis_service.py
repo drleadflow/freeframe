@@ -80,7 +80,7 @@ def delete_magic_code(email: str) -> None:
 # Password setup tokens — issued after magic code verification when needs_password=True.
 # Allows the set-password endpoint to verify the user without relying on localStorage tokens.
 PASSWORD_SETUP_TOKEN_PREFIX = "pwd_setup:"
-PASSWORD_SETUP_TOKEN_EXPIRY_SECONDS = 600  # 10 minutes
+PASSWORD_SETUP_TOKEN_EXPIRY_SECONDS = 1800  # 30 minutes
 
 
 def store_password_setup_token(email: str, token: str) -> None:

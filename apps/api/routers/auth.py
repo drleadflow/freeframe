@@ -282,3 +282,40 @@ def update_preferences(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+# ── TEMPORARY: Admin password reset (remove after Emeka is unblocked) ─────────
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class AdminResetPasswordRequest(PydanticBaseModel):
+    email: str
+    new_password: str
+    reset_token: str = ""  # simple gate, remove after use
+
+_ADMIN_RESET_TOKEN = "freeframe-reset-2026"
+
+
+@router.post("/_reset-password")
+def admin_reset_password(body: AdminResetPasswordRequest, db: Session = Depends(get_db)):
+    """TEMPORARY: Reset a user's password directly. Remove after founder is unblocked."""
+    if body.reset_token != _ADMIN_RESET_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid reset token")
+
+    user = get_user_by_email(db, body.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    user.password_hash = hash_password(body.new_password)
+    user.email_verified = True
+    user.status = UserStatus.active
+    db.commit()
+
+    return {
+        "message": "Password reset successfully",
+        "email": body.email,
+        "can_login": True,
+    }
