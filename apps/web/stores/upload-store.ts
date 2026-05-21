@@ -197,17 +197,32 @@ const storeCreator: StateCreator<UploadStore, [['zustand/persist', unknown]]> = 
             part_number: partNumber,
           })
 
-          const putResponse = await fetch(presigned_url, {
-            method: 'PUT',
-            body: chunk,
-            signal: controller.signal,
-          })
+          let putResponse: Response
+          try {
+            putResponse = await fetch(presigned_url, {
+              method: 'PUT',
+              body: chunk,
+              signal: controller.signal,
+            })
+          } catch (fetchErr) {
+            // "Failed to fetch" typically means S3 CORS is not configured
+            throw new Error(
+              `Part ${partNumber} upload failed — check S3 CORS configuration. ` +
+              (fetchErr instanceof Error ? fetchErr.message : 'Network error'),
+            )
+          }
 
           if (!putResponse.ok) {
             throw new Error(`Part ${partNumber} failed: ${putResponse.statusText}`)
           }
 
-          const etag = putResponse.headers.get('ETag') ?? ''
+          const etag = putResponse.headers.get('ETag')
+          if (!etag) {
+            throw new Error(
+              `Part ${partNumber}: S3 did not return ETag header. ` +
+              'Ensure S3 CORS exposes the ETag header.',
+            )
+          }
           parts.push({ PartNumber: partNumber, ETag: etag })
 
           updateFile(id, { progress: Math.round((partNumber / totalChunks) * 95) })
@@ -302,9 +317,21 @@ const storeCreator: StateCreator<UploadStore, [['zustand/persist', unknown]]> = 
           const { presigned_url } = await api.post<{ presigned_url: string }>('/upload/presign-part', {
             s3_key, upload_id, part_number: partNumber,
           })
-          const putResponse = await fetch(presigned_url, { method: 'PUT', body: chunk, signal: controller.signal })
+          let putResponse: Response
+          try {
+            putResponse = await fetch(presigned_url, { method: 'PUT', body: chunk, signal: controller.signal })
+          } catch (fetchErr) {
+            throw new Error(
+              `Part ${partNumber} upload failed — check S3 CORS configuration. ` +
+              (fetchErr instanceof Error ? fetchErr.message : 'Network error'),
+            )
+          }
           if (!putResponse.ok) throw new Error(`Part ${partNumber} failed: ${putResponse.statusText}`)
-          parts.push({ PartNumber: partNumber, ETag: putResponse.headers.get('ETag') ?? '' })
+          const etag = putResponse.headers.get('ETag')
+          if (!etag) {
+            throw new Error(`Part ${partNumber}: S3 did not return ETag header. Ensure S3 CORS exposes the ETag header.`)
+          }
+          parts.push({ PartNumber: partNumber, ETag: etag })
           updateFile(id, { progress: Math.round((partNumber / totalChunks) * 95) })
         }
 

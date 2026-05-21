@@ -17,29 +17,37 @@ CONTENT_TYPE_MAP = {
     ".png": ("image/png", "max-age=86400"),
 }
 
+def _storage_type() -> str:
+    """Return normalized storage type: 's3', 'r2', or 'minio'."""
+    return settings.s3_storage.lower()
+
 def _is_aws_s3() -> bool:
-    """Check if using AWS S3 (vs MinIO/local). Controlled by S3_STORAGE env var."""
-    return settings.s3_storage.lower() == "s3"
+    """Check if using real AWS S3 (no custom endpoint needed)."""
+    return _storage_type() == "s3"
+
+def _needs_custom_endpoint() -> bool:
+    """R2, MinIO, B2, Spaces, etc. all need a custom endpoint_url."""
+    return _storage_type() != "s3"
 
 def get_s3_client():
     """
-    Create S3 client. Auto-detects AWS vs MinIO:
-    - If access_key starts with 'AKIA' -> use AWS S3 (no endpoint_url)
-    - Otherwise -> use custom endpoint (MinIO or S3-compatible)
+    Create S3 client.
+    - "s3": AWS S3 (no endpoint_url)
+    - "r2": Cloudflare R2 (custom endpoint)
+    - "minio" / anything else: MinIO or S3-compatible (custom endpoint)
     """
-    if _is_aws_s3():
-        # Real AWS S3 - don't pass endpoint_url
+    if _needs_custom_endpoint():
         return boto3.client(
             "s3",
+            endpoint_url=settings.s3_endpoint,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
         )
     else:
-        # MinIO or S3-compatible storage
+        # Real AWS S3 - don't pass endpoint_url
         return boto3.client(
             "s3",
-            endpoint_url=settings.s3_endpoint,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
@@ -51,7 +59,7 @@ def _get_presign_client():
     so presigned URLs are accessible from the browser (e.g. localhost:9000
     instead of minio:9000 in Docker).
     """
-    endpoint = settings.s3_public_endpoint or (None if _is_aws_s3() else settings.s3_endpoint)
+    endpoint = settings.s3_public_endpoint or (None if not _needs_custom_endpoint() else settings.s3_endpoint)
     kwargs = {
         "aws_access_key_id": settings.s3_access_key,
         "aws_secret_access_key": settings.s3_secret_key,
@@ -78,9 +86,9 @@ def ensure_bucket_exists():
             else:
                 s3.create_bucket(Bucket=settings.s3_bucket)
         elif error_code == "403":
-            # Bucket exists but we don't have access, or using wrong credentials
-            # For AWS S3, bucket likely already exists - skip creation
-            if _is_aws_s3():
+            # Bucket exists but credentials lack ListBucket/CreateBucket permission.
+            # For managed providers (AWS S3, R2), bucket is pre-created via dashboard.
+            if _storage_type() in ("s3", "r2"):
                 pass  # Assume bucket exists, will fail on actual operations if not
             else:
                 raise
@@ -88,27 +96,33 @@ def ensure_bucket_exists():
             raise
 
     # Set CORS for browser-based uploads (presigned PUT)
-    if not _is_aws_s3():
-        try:
-            s3.put_bucket_cors(
-                Bucket=settings.s3_bucket,
-                CORSConfiguration={
-                    "CORSRules": [
-                        {
-                            "AllowedHeaders": ["*"],
-                            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-                            "AllowedOrigins": [settings.frontend_url, "http://localhost:3000"],
-                            "ExposeHeaders": ["ETag", "Content-Length", "x-amz-request-id"],
-                            "MaxAgeSeconds": 3600,
-                        }
-                    ]
-                },
-            )
-        except ClientError:
-            pass  # CORS config failed, non-critical
+    # Required for BOTH MinIO and AWS S3 — without this, browser PUT requests
+    # to presigned URLs fail with CORS errors ("Failed to fetch").
+    cors_origins = [settings.frontend_url]
+    if settings.frontend_url != "http://localhost:3000":
+        cors_origins.append("http://localhost:3000")
+    try:
+        s3.put_bucket_cors(
+            Bucket=settings.s3_bucket,
+            CORSConfiguration={
+                "CORSRules": [
+                    {
+                        "AllowedHeaders": ["*"],
+                        "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                        "AllowedOrigins": cors_origins,
+                        "ExposeHeaders": ["ETag", "Content-Length", "x-amz-request-id"],
+                        "MaxAgeSeconds": 3600,
+                    }
+                ]
+            },
+        )
+    except ClientError:
+        pass  # CORS config failed, non-critical
 
-        # Set public-read policy on processed/ prefix so HLS sub-playlists
-        # and .ts segments can be fetched without presigned URLs
+    # Set public-read policy on processed/ prefix so HLS sub-playlists
+    # and .ts segments can be fetched without presigned URLs.
+    # Only for MinIO — AWS S3 and R2 manage policies via their own dashboards.
+    if _storage_type() == "minio":
         try:
             policy = {
                 "Version": "2012-10-17",

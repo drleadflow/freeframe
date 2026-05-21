@@ -82,8 +82,8 @@ services:
       -w $${API_WORKERS:-4}
       -k uvicorn.workers.UvicornWorker
       --bind 0.0.0.0:8000
-      --timeout 120
-      --graceful-timeout 30"
+      --timeout ${API_TIMEOUT:-300}
+      --graceful-timeout 60"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
