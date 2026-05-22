@@ -341,7 +341,8 @@ export function LoginForm() {
             onChange={() => {}}
             readOnly
             aria-hidden="true"
-            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none', tabIndex: -1 }}
+            tabIndex={-1}
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
           />
 
           {generalError && (
