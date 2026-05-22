@@ -19,7 +19,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
-# Copy full source
+# Copy full source (ARG before COPY busts cache when value changes)
+ARG CACHEBUST_SOURCE=2026-05-22-v4
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL=/api
