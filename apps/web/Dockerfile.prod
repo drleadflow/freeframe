@@ -28,7 +28,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build directly (bypass turbo to avoid workspace resolution issues)
 WORKDIR /app/apps/web
-# Cache bust v5
 RUN npx next build
 
 # Stage 3: Production runner
