@@ -11,7 +11,16 @@ const nextConfig = {
         hostname: 'localhost',
         port: '9000',
       },
+      {
+        protocol: 'https',
+        hostname: '*.r2.cloudflarestorage.com',
+      },
     ],
+  },
+  experimental: {
+    outputFileTracingIncludes: {
+      '/**': ['./node_modules/sharp/**/*'],
+    },
   },
 }
 
