@@ -28,7 +28,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build directly (bypass turbo to avoid workspace resolution issues)
 WORKDIR /app/apps/web
-RUN npx next build
+# Cache bust v4 — debug standalone structure
+RUN npx next build && echo "=== STANDALONE ROOT ===" && ls -la .next/standalone/ && echo "=== STANDALONE/APPS ===" && ls -la .next/standalone/apps/web/ 2>/dev/null || echo "no apps/web in standalone" && echo "=== FIND SERVER.JS ===" && find .next/standalone -name "server.js" -type f
 
 # Stage 3: Production runner
 FROM node:20-alpine AS runner
