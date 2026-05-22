@@ -7,8 +7,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
 
-# Cache-bust arg + install without frozen lockfile to handle version drift
-ARG CACHEBUST=1
+# Force fresh install (bump this comment to bust Docker cache: v2)
 RUN pnpm install --no-frozen-lockfile
 
 # Stage 2: Build the Next.js app
