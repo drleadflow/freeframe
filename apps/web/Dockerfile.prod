@@ -19,8 +19,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
-# Copy full source (ARG before COPY busts cache when value changes)
-ARG CACHEBUST_SOURCE=2026-05-22-v4
+# Copy full source
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL=/api
@@ -29,8 +28,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build directly (bypass turbo to avoid workspace resolution issues)
 WORKDIR /app/apps/web
-# Cache bust v4 — debug standalone structure
-RUN npx next build && echo "=== STANDALONE ROOT ===" && ls -la .next/standalone/ && echo "=== STANDALONE/APPS ===" && ls -la .next/standalone/apps/web/ 2>/dev/null || echo "no apps/web in standalone" && echo "=== FIND SERVER.JS ===" && find .next/standalone -name "server.js" -type f
+# Cache bust v5
+RUN npx next build
 
 # Stage 3: Production runner
 FROM node:20-alpine AS runner
@@ -44,12 +43,12 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./.next/static
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "server.js"]
